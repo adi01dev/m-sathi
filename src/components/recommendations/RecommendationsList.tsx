@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Recommendation } from '@/lib/types';
-import { Music, Video, Activity, Lungs, Sparkles, MessageSquareQuote, PenLine, Check } from 'lucide-react';
+import { Music, Video, Activity, Wind, Sparkles, MessageSquareQuote, PenLine, Check } from 'lucide-react';
 import { recommendationsAPI } from '@/lib/api';
 import { useToast } from '@/components/ui/use-toast';
 
@@ -23,7 +23,7 @@ export function RecommendationsList({ recommendations, moodLabel }: Recommendati
       case 'music': return <Music className="h-4 w-4" />;
       case 'video': return <Video className="h-4 w-4" />;
       case 'activity': return <Activity className="h-4 w-4" />;
-      case 'breathing': return <Lungs className="h-4 w-4" />;
+      case 'breathing': return <Wind className="h-4 w-4" />; // Changed from Lungs to Wind
       case 'meditation': return <Sparkles className="h-4 w-4" />;
       case 'affirmation': return <MessageSquareQuote className="h-4 w-4" />;
       case 'journaling': return <PenLine className="h-4 w-4" />;
