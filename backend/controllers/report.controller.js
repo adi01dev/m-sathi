@@ -5,6 +5,7 @@ const Mood = require('../models/mood.model');
 const Recommendation = require('../models/recommendation.model');
 const { asyncHandler, AppError } = require('../middleware/error.middleware');
 const { generatePDF } = require('../utils/pdfGenerator');
+const { generateReportWithAI } = require('../utils/aiServiceConnector');
 
 /**
  * @desc    Generate a weekly wellness report
@@ -37,25 +38,54 @@ exports.generateWeeklyReport = asyncHandler(async (req, res) => {
     });
     
     // Get completed recommendations
-    const recommendations = await Recommendation.findCompletedByUser(userId);
+    const completedRecommendations = await Recommendation.findCompletedByUser(userId);
     
-    // Generate PDF
+    // Get user streak info
+    const user = await User.findById(userId);
+    const streakInfo = {
+      current: user.streak,
+      plantLevel: user.plantLevel
+    };
+    
+    // Generate PDF using AI service
     try {
-      const pdfBuffer = await generatePDF({
-        userName: req.user.name,
-        report,
-        moodEntries,
-        recommendations
+      // First attempt to use the AI service for enhanced reports
+      const reportResult = await generateReportWithAI({
+        userId: userId.toString(),
+        weekNumber: report.weekNumber,
+        year: report.year,
+        startDate: report.startDate.toISOString(),
+        endDate: report.endDate.toISOString(),
+        moodEntries: moodEntries.map(entry => entry.toObject()),
+        completedRecommendations: completedRecommendations.map(rec => rec.toObject()),
+        streak: streakInfo
       });
       
-      // Save PDF URL (in a real app, you'd upload to cloud storage)
-      // For now, we'll just set a placeholder
-      report.url = `/reports/${report._id}.pdf`;
-      await report.save();
+      if (reportResult && reportResult.reportFilename) {
+        // Save PDF URL (in a real app, you'd have a proper URL)
+        report.url = `/reports/${reportResult.reportFilename}`;
+        await report.save();
+      }
+    } catch (aiError) {
+      console.error('Error using AI service for report generation:', aiError);
       
-    } catch (error) {
-      console.error('Error generating PDF:', error);
-      // Continue without PDF if generation fails
+      // Fall back to built-in PDF generation
+      try {
+        const pdfBuffer = await generatePDF({
+          userName: req.user.name,
+          report,
+          moodEntries,
+          recommendations: completedRecommendations
+        });
+        
+        // Save PDF URL (in a real app, you'd upload to cloud storage)
+        report.url = `/reports/${report._id}.pdf`;
+        await report.save();
+        
+      } catch (pdfError) {
+        console.error('Error generating PDF:', pdfError);
+        // Continue without PDF if generation fails
+      }
     }
   }
   

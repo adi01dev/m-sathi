@@ -4,6 +4,7 @@ const User = require('../models/user.model');
 const { asyncHandler, AppError } = require('../middleware/error.middleware');
 const { getSpotifyRecommendations } = require('../utils/spotifyAPI');
 const { getYouTubeRecommendations } = require('../utils/youtubeAPI');
+const { getAIRecommendations } = require('../utils/aiServiceConnector');
 
 /**
  * @desc    Get recommendations for user
@@ -20,22 +21,55 @@ exports.getRecommendations = asyncHandler(async (req, res) => {
   // Get stored recommendations
   let recommendations = await Recommendation.findForMood(moodLabel, 10);
   
-  // If we have less than 5 recommendations, fetch some from external APIs
+  // If we have less than 5 recommendations, fetch some from external sources
   if (recommendations.length < 5) {
     try {
-      // Get music recommendations from Spotify based on mood
-      const spotifyRecs = await getSpotifyRecommendations(moodLabel);
+      // First try to get recommendations from the AI service
+      const userId = req.user._id.toString();
+      const previousRecommendationIds = recommendations.map(rec => rec._id.toString());
       
-      // Get video recommendations from YouTube based on mood
-      const youtubeRecs = await getYouTubeRecommendations(moodLabel);
-      
-      // Save these recommendations to database
-      if (spotifyRecs.length > 0) {
-        await Recommendation.insertMany(spotifyRecs);
-      }
-      
-      if (youtubeRecs.length > 0) {
-        await Recommendation.insertMany(youtubeRecs);
+      try {
+        // Get AI-powered personalized recommendations
+        const aiRecommendations = await getAIRecommendations(
+          userId, 
+          moodLabel, 
+          previousRecommendationIds
+        );
+        
+        // Save these recommendations to database
+        if (aiRecommendations && aiRecommendations.length > 0) {
+          // Format recommendations for our database model
+          const formattedRecs = aiRecommendations.map(rec => ({
+            title: rec.title,
+            description: rec.description,
+            type: rec.type,
+            link: rec.link,
+            imageUrl: rec.imageUrl,
+            forMoods: rec.forMoods || [moodLabel],
+            tags: rec.tags || [],
+            duration: rec.duration
+          }));
+          
+          await Recommendation.insertMany(formattedRecs);
+        }
+      } catch (aiError) {
+        console.error('Error fetching AI recommendations:', aiError);
+        
+        // Fall back to direct API services if AI service fails
+        // Get music recommendations from Spotify based on mood
+        const spotifyRecs = await getSpotifyRecommendations(moodLabel);
+        
+        // Get video recommendations from YouTube based on mood
+        const youtubeRecs = await getYouTubeRecommendations(moodLabel);
+        
+        // Save these recommendations to database
+        if (spotifyRecs.length > 0) {
+          await Recommendation.insertMany(spotifyRecs);
+        }
+        
+        if (youtubeRecs.length > 0) {
+          await Recommendation.insertMany(youtubeRecs);
+        }
       }
       
       // Get updated list of recommendations

@@ -1,0 +1,27 @@
+
+version: '3.8'
+
+services:
+  ai_service:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./reports:/app/reports
+      - ./uploads:/app/uploads
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID}
+      - SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET}
+      - YOUTUBE_API_KEY=${YOUTUBE_API_KEY}
+    restart: unless-stopped
+
+  # Add a simple web server for reports (optional)
+  report_server:
+    image: nginx:alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./reports:/usr/share/nginx/html
+    depends_on:
+      - ai_service
